@@ -51,7 +51,9 @@ public abstract class PushMeterRegistry extends MeterRegistry {
      */
     private void publishSafely() {
         try {
+            long start = clock.wallTime();
             publish();
+            logger.debug("Published metrics in {} ms", clock.wallTime() - start);
         }
         catch (Throwable e) {
             logger.warn("Unexpected exception thrown while publishing metrics for " + getClass().getSimpleName(), e);
@@ -75,9 +77,13 @@ public abstract class PushMeterRegistry extends MeterRegistry {
                     + TimeUtils.format(config.step()));
 
             scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(threadFactory);
-            // time publication to happen just after StepValue finishes the step
+            // if aligned, time publication to happen
+            // just after StepValue finishes the step
             long stepMillis = config.step().toMillis();
-            long initialDelayMillis = stepMillis - (clock.wallTime() % stepMillis) + 1;
+            long initialDelayMillis = stepMillis;
+            if (config.stepAlignment()) {
+                initialDelayMillis = stepMillis - (clock.wallTime() % stepMillis) + 1;
+            }
             scheduledExecutorService.scheduleAtFixedRate(this::publishSafely, initialDelayMillis, stepMillis,
                     TimeUnit.MILLISECONDS);
         }
